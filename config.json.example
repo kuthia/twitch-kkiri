@@ -1,0 +1,13 @@
+{
+  "channels": ["#bot channel"],
+  "identity": {
+    "username": "twitch bot username",
+    "password": "oauth password here" 
+  },
+  "salt": "random string for hashing",
+  "publicUrl": "http://public.page.tld"
+  "debug": true,
+  "admin": "admin twitch user",
+  "port": 8080,
+  "mongoConnection": "username:password@localhost/kkiri"
+}

@@ -1,0 +1,11 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.11.0
+ignore: {}
+# patches apply the minimum changes required to fix a vulnerability
+patch:
+  'npm:ws:20160624':
+    - twitch-js > ws:
+        patched: '2018-04-30T07:30:55.124Z'
+  'npm:ws:20160920':
+    - twitch-js > ws:
+        patched: '2018-04-30T07:30:55.124Z'
