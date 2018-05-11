@@ -9,7 +9,7 @@ const db = mongojs(config['mongoConnection']);
 const twOptions = {
   channels: config['channels'],
   options: {
-    debug: config['debug']
+    debug: config['debug_chat']
   },
   secure: true,
   identity: config['identity']
@@ -81,8 +81,8 @@ const Bot = {
   }
 };
 
-function hasPermission(chatter) {
-  return chatter.mod || chatter.username == config['admin'];
+function hasPermission(chatter, channel) {
+  return ('#' + chatter.username == channel) || chatter.username == config['admin'];
 }
 
 function getPlatform(input) {
@@ -103,7 +103,7 @@ const commands = {
       } else {
         if(!doc || doc.status === 'finished') {
           var _t = '시청자 참여 접수시간이 아닙니다!';
-          if(hasPermission(chatter)) {
+          if(hasPermission(chatter, channel)) {
             _t += ' TwitchRPG 관리자 명령: !시참시작, !시참마감, !시참끝 을 사용할 수 있습니다'
           }
           Bot.whisper(_t, chatter.username, channel);
@@ -113,7 +113,7 @@ const commands = {
           if(tokens.length < 3) {
             var _t = '시참을 원하시면 귓말이 아닌 채팅창에 \'!시참 플랫폼 게임ID\' 형태로 말해주세요. (예: !시참 스팀 kkiri). 참여 목록은 \'!시참명단\' 혹은 ${publicUrl} 에서 확인해주세요~! 취소는 \'!시참취소\' 로 가능합니다.';
 
-            if(hasPermission(chatter)) {
+            if(hasPermission(chatter, channel)) {
               _t += ' TwitchRPG 관리자 명령: !시참시작, !시참마감, !시참토큰, !시참끝 을 사용할 수 있습니다'
             }
 
@@ -198,7 +198,7 @@ const commands = {
     });
   },
   '!시참플랫폼': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       if(tokens.length < 2) {
         Bot.whisper('시참 가능한 플랫폼 설정을 할 수 있습니다 \"!시참플랫폼 스팀\" 과 같이 입력해주세요. (선택가능: 스팀, 카카오, 전부)!', chatter.username, channel);
       } else {
@@ -211,7 +211,7 @@ const commands = {
     }
   },
   '!시참시작': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       var adminToken = md5(moment().toString()+salt);
       db.kkiri.save({_id: 'ch_'+channel, channel: channel, adminToken: adminToken, status: 'open'}, (err, doc) => {
         if(err) {
@@ -225,7 +225,7 @@ const commands = {
     }
   },
   '!시참마감': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'closed'}, (err, doc) => {
         if(err) {
           console.log(err);
@@ -237,7 +237,7 @@ const commands = {
     }
   },
   '!시참토큰': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       var adminToken = md5(moment().toString()+salt);
       db.kkiri.update({channel: channel}, {$set: {_id: 'ch_'+channel, channel: channel, adminToken: adminToken}}, (err, doc) => {
         Bot.whisper(template('명단 저장을 위한 토큰은 ${adminToken}입니다. 유출될 경우 다시 !시참토큰 해주세요!', {adminToken: adminToken}), chatter.username, channel);
@@ -245,7 +245,7 @@ const commands = {
     }
   },
   '!시참끝': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       var bulk = db.kkiri.initializeOrderedBulkOp();
 
       bulk.find({
