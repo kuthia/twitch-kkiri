@@ -1,105 +1,25 @@
-const TwitchJS = require('twitch-js');
-const template = require('es6-template-string');
-const moment = require('moment');
-const mongojs = require('mongojs');
-const md5 = require('md5');
-const config = require('./config.json'); 
+import { getPlatform, getAvailablePlatforms, hasPermission } from './utils';
+import config from "../../config.json"; 
+import md5 from "md5";
+import moment from "moment";
+import template from "es6-template-string";
+
+import mongojs from "mongojs";
 const db = mongojs(config['mongoConnection']);
 
-const twOptions = {
-  channels: config['channels'],
-  options: {
-    debug: config['debug_chat']
-  },
-  secure: true,
-  identity: config['identity']
-};
-const twBot = new TwitchJS.client(twOptions);
-
-var channels = {
-};
-
 const salt = config['salt']; 
+
 const publicUrl = config['publicUrl'];
 
-const platform = {
-  steam: {
-    name: '스팀',
-    alias: ['스팀', '스배', 'steam'],
-    available: true
-  },
-  kakao: {
-    name: '카카오',
-    alias: ['카카오', '카배', '카배그', 'kakao'],
-    available: true
-  }
-};
+class CommandResult {
 
-const DEBUG = config['debug'];
-
-const Bot = {
-  whisper: (msg, user, channel) => {
-    if(DEBUG) {
-      twBot.say(channel, '::DEBUG::' + user + '에게 귓속말: ' + msg);
-    } else {
-      twBot.whisper(user, msg);
-    }
-  },
-  say: (msg, channel) => {
-    twBot.say(channel, msg);
-  },
-  start: () => {
-    twBot.connect();
-
-    twBot.on('join', function(channel, username, self) {
-      if(username === twOptions.identity.username) {
-        console.log('Bot has joined ', channel);
-
-        db.kkiri.findOne({ _id: 'ch_'+channel }, (err, doc) => {
-          if(doc && doc.hasOwnProperty('adminToken')) {
-            channels = { adminToken: doc.adminToken };
-            console.log(channel + ' has admin token: ' + doc.adminToken);
-          }
-        });
-      }
-    });
-
-    twBot.on('connected', (address, port) => {
-
-      twBot.on('chat', (channel, userstate, message, self) => {
-        var user = userstate.username;
-        var tokens = message.split(' ');
-        if(commands.hasOwnProperty(tokens[0])) {
-          try {
-            commands[tokens[0]](channel, userstate, tokens);
-          } catch (e) {
-
-          }
-        }
-      })
-    });
-  }
-};
-
-function hasPermission(chatter, channel) {
-  return ('#' + chatter.username == channel) || chatter.username == config['admin'];
-}
-
-function getPlatform(input) {
-  var _keys = Object.keys(platform);
-  for(var i = 0; i < _keys.length; i++) {
-    if(platform[_keys[i]].available && platform[_keys[i]].alias.indexOf(input) > -1) {
-      return _keys[i];
-    }
-  }
-  console.log('no platform');
 }
 
 const commands = {
-  '!시참': (channel, chatter, tokens) => {
+  '!시참': (Bot, channel, chatter, tokens) => {
     db.kkiri.findOne({_id: 'ch_'+channel}, (err, doc) => {
       if(err) {
-
+        console.log(err);
       } else {
         if(!doc || doc.status === 'finished') {
           var _t = '시청자 참여 접수시간이 아닙니다!';
@@ -125,8 +45,8 @@ const commands = {
             }), channel);
           } else {
             var _platform = getPlatform(tokens[1]);
+            var _platforms = getAvailablePlatforms();
             if(!_platform) {
-              var _platforms = [].concat(platform.steam.alias ? platform.steam.available : []).concat(platform.kakao.alias ? platform.kakao.available : []);
               Bot.whisper(template('플랫폼을 인식할 수 없습니다. 다음과 같은 형태로 입력 부탁드립니다. (예: ${examples})', {
                 examples: _platforms
               }), chatter.username, channel);
@@ -139,7 +59,8 @@ const commands = {
               user: chatter.username,
               platform: _platform,
               nickname: tokens[2],
-              notice: ''
+              notice: '',
+              status: sessionClosed ? 'LATED' : 'SUBMITTED'
             };
 
             db.kkiri.findOne({user: chatter.username}, (err, doc) => {
@@ -154,9 +75,7 @@ const commands = {
                   Bot.whisper(template('${displayName}(${user})님(${nickname}/${platform}) 참여 신청 정보를 수정했습니다. ${notice}', userContext), chatter.username, channel);
                 });
               } else {
-                userContext.status = sessionClosed ? 'LATED' : 'SUBMITTED';
                 userContext.regdate = moment().toDate();
-
                 db.kkiri.save(userContext, (err, doc) => {
                   if(err) {
                     Bot.whisper(template('시청자 참여 등록에 실패했습니다! 무슨 문제가 있는 걸까요? 채널 관리자에게 알려주세요!', userContext), chatter.username, channel);
@@ -175,7 +94,7 @@ const commands = {
       }
     });
   },
-  '!시참취소': (channel, chatter, tokens) => {
+  '!시참취소': (Bot, channel, chatter, tokens) => {
     try {
       db.kkiri.remove({user: chatter.username});
       Bot.whisper('시청자 참여를 취소했습니다! 안타깝습니다!', chatter.username, channel);
@@ -183,7 +102,7 @@ const commands = {
       Bot.whisper('시청자 참여를 취소하는데 실패했습니다! 이상한데요?', chatter.username, channel);
     }
   },
-  '!시참명단': (channel, chatter, tokens) => {
+  '!시참명단': (Bot, channel, chatter, tokens) => {
     db.kkiri.find({
       $or: [
         { status: 'SUBMITTED' },
@@ -197,7 +116,7 @@ const commands = {
       Bot.whisper(template('총 ${no}명이 대기중입니다. 앞에서부터 ${people}. 그외 추가 접수자까지 한번에 보시려면 ${publicUrl}', {no: docs.length, people: people, publicUrl: publicUrl + '/?c=' + channel.replace('#', '')}), chatter.username, channel);
     });
   },
-  '!시참플랫폼': (channel, chatter, tokens) => {
+  '!시참플랫폼': (Bot, channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
       if(tokens.length < 2) {
         Bot.whisper('시참 가능한 플랫폼 설정을 할 수 있습니다 \"!시참플랫폼 스팀\" 과 같이 입력해주세요. (선택가능: 스팀, 카카오, 전부)!', chatter.username, channel);
@@ -210,33 +129,31 @@ const commands = {
       }
     }
   },
-  '!시참시작': (channel, chatter, tokens) => {
+  '!시참시작': (Bot, channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
       var adminToken = md5(moment().toString()+salt);
       db.kkiri.save({_id: 'ch_'+channel, channel: channel, adminToken: adminToken, status: 'open'}, (err, doc) => {
         if(err) {
-
+          console.log(err);
         } else {
           Bot.say('시청자 참여 접수가 시작됐습니다! \'!시참 플랫폼 닉네임\' 형태로 접수해주세요!', channel);
           Bot.whisper(template('${channel} 명단 저장을 위한 토큰은 ${adminToken}입니다. 유출될 경우 다시 !시참시작 해주세요!', {channel: channel, adminToken: adminToken}), chatter.username, channel);
-          sessionClosed = false;
         }
       });
     }
   },
-  '!시참마감': (channel, chatter, tokens) => {
+  '!시참마감': (Bot, channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
       db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'closed'}, (err, doc) => {
         if(err) {
           console.log(err);
         } else {
           Bot.say('시청자 참여 접수를 마감했습니다!', channel);
-          var sessionClosed = true;
         }
       });
     }
   },
-  '!시참토큰': (channel, chatter, tokens) => {
+  '!시참토큰': (Bot, channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
       var adminToken = md5(moment().toString()+salt);
       db.kkiri.update({channel: channel}, {$set: {_id: 'ch_'+channel, channel: channel, adminToken: adminToken}}, (err, doc) => {
@@ -244,7 +161,7 @@ const commands = {
       });
     }
   },
-  '!시참끝': (channel, chatter, tokens) => {
+  '!시참끝': (Bot, channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
       var bulk = db.kkiri.initializeOrderedBulkOp();
 
@@ -271,115 +188,4 @@ const commands = {
   },
 };
 
-Bot.start();
-
-// EXPRESS 부분 
-
-const path = require('path');
-const express = require('express');
-const app = express();
-const bodyParser = require('body-parser');
-const exphbs = require('express-handlebars');
-
-app.use(bodyParser.json()); // for parsing application/json
-app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
-app.set('views', path.join(__dirname, 'views'));
-app.engine('.hbs', exphbs({
-  defaultLayout: 'single',
-  extname: '.hbs',
-  helpers: {
-    date: require('helper-date')
-  }
-}));
-app.set('view engine', '.hbs');
-app.use('/static', express.static('public'));
-
-app.get('/', function (req, res) {
-  db.kkiri.find({
-    $or: [
-      { status: 'SUBMITTED' },
-      { status: 'LATED' },
-    ],
-    $and: [
-      { channel: '#'+req.query.c }
-    ]
-  }).sort({team: 1, regdate: 1}, (err, docs) => {
-    docs.map((e) => {
-      e.hasTeam = e.hasOwnProperty('team');
-      e.platformDisplay = e.platform == 'kakao' ? '카카오':'스팀';
-    });
-    var context = {
-      user: docs.filter((doc) => {
-        return doc.status === 'SUBMITTED'
-      }),
-      latedUser: docs.filter((doc) => {
-        return doc.status === 'LATED'
-      }),
-      channel: req.query.c
-    };
-    res.render('list', context);
-  });
-});
-
-app.post('/auth', (req, res) => {
-  db.kkiri.update({
-    channel: req.body.channel,
-    pass: req.body.pass
-  }, {
-    $set: {
-      adminToken: md5(moment().toString())
-    }
-  }, (err, docs) => {
-    if(err) {
-      res.status(403).send('Bad Request');
-    } else {
-      res.json({
-        status: 'authorized'
-      });
-    }
-  });
-});
-
-app.post('/saveTeam', (req, res) => {
-  if(req.body.adminToken != channels[req.body.channel].adminToken) {
-    res.status(403).send('No authorization');
-    return;
-  } else {
-    db.kkiri.update({ channel: req.body.channel, nickname: req.body.user },
-      {
-        $set: {
-          team: req.body.team
-        }
-      }, (err, doc) => {
-      if(err) {
-        res.status(403).send('Bad Request');
-      } else {
-        res.json(doc);
-      }
-    });
-  }
-});
-
-app.post('/changeTeam', (req, res) => {
-  if(req.body.adminToken != channels[req.body.channel].adminToken) {
-    res.status(403).send('No authorization');
-    return;
-  } else {
-    db.kkiri.findOne({ channel: req.body.channel, nickname: req.body.user.username}, (err, doc) => {
-      if (doc && doc.team + req.body.acc > -1) {
-        db.kkiri.update(doc, {
-          $set: {
-            team: doc.team + req.body.acc
-          }
-        }, (err, doc) => {
-          req.body.user.team += req.body.acc;
-          res.json(req.body.user);
-        });
-      } else {
-        res.status(400).send();
-      }
-    });
-  }
-});
-
-app.listen(config['port'], () => console.log('KKIRI listening on port '+config['port']))
+export { commands };
