@@ -4,6 +4,7 @@ angular.module('kkiri', [])
     $interpolateProvider.endSymbol('}]}');
   })
   .controller('TeamController', ($scope, $http, $location, $q) => {
+    $scope.allocated = {};
 
     var channel = angular.element('[ng-app]').data('channel');
     console.log(channel);
@@ -25,7 +26,8 @@ angular.module('kkiri', [])
       return angular.element(selector).map((idx, elm) => {
         return {
           displayName: $(elm).data('display-name'),
-          username: $(elm).data('username'),
+          username: $(elm).data('user'),
+          nickname: $(elm).data('nickname'),
           platform: $(elm).data('platform'),
           team: $(elm).data('team')
         };
@@ -104,6 +106,38 @@ angular.module('kkiri', [])
       });
     }
 
+
+    $scope.saveUserTeam = (user, team) => {
+      if(!$scope.context.adminToken) {
+        alert('관리자용 토큰을 입력해주세요.');
+        return;
+      }
+
+      $http({
+        method: 'post',
+        url: '/changeTeam',
+        data: {
+          channel: channel,
+          user: user,
+          set: parseInt(team, 10)-1,
+          adminToken: $scope.context.adminToken
+        }
+      }).then((result) => {
+        // change
+        var _user = readUser('[data-user='+user+']')[0];
+        if($scope.context.platforms[_user.platform].teams.length <= team) {
+          $scope.context.platforms[_user.platform].teams[team-1].users.push(_user);
+        } else {
+          $scope.context.platforms[_user.platform].teams.push({
+            users: [_user]
+          });
+        }
+        $scope.allocated[user] = true;
+      }, (err) => {
+
+      });
+    }
+
     $scope.changeUserTeam = (user, acc) => {
       if(!$scope.context.adminToken) {
         alert('관리자용 토큰을 입력해주세요.');
@@ -143,13 +177,41 @@ angular.module('kkiri', [])
       });
     }
 
-    $scope.makeTeam = () => {
+    $scope.removeTeam = (user) => {
+      if(!confirm('팀 배정을 취소할까요?')) {
+        return;
+      }
       if(!$scope.context.adminToken) {
         alert('관리자용 토큰을 입력해주세요.');
         return;
       }
 
-      var users = shuffle(readUser('.user-row'));
+      if(!user.hasOwnProperty('team')) {
+        alert('아직 팀에 속하지 않은 유저입니다.');
+        return;
+      }
+
+      $http({
+        method: 'post',
+        url: '/removeTeam',
+        data: {
+          channel: channel,
+          user: user,
+          adminToken: $scope.context.adminToken
+        }
+      }).then((result) => {
+        var originalTeam = _.find($scope.context.platforms[user.platform].teams, (val, idx) => { return idx == user.team});
+        _.remove(originalTeam.users, (e) => { return e.username == result.data.username });
+      });
+    }
+
+    $scope.makeTeam = () => {
+      if(!$scope.context.adminToken) {
+        alert('관리자용 토큰을 입력해주세요.');
+        return;
+      }
+      var userSelector = '.user-row';
+      var users = shuffle(readUser(userSelector));
 
       for (var k = 0; k < Object.keys($scope.context.platforms).length; k++) {
         var pk = Object.keys($scope.context.platforms)[k];

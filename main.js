@@ -3,13 +3,14 @@ const template = require('es6-template-string');
 const moment = require('moment');
 const mongojs = require('mongojs');
 const md5 = require('md5');
-const config = require('./config.json'); 
+const request = require('request');
+const config = require('./config.json');
 const db = mongojs(config['mongoConnection']);
 
 const twOptions = {
   channels: config['channels'],
   options: {
-    debug: config['debug']
+    debug: config['debug_chat']
   },
   secure: true,
   identity: config['identity']
@@ -19,7 +20,7 @@ const twBot = new TwitchJS.client(twOptions);
 var channels = {
 };
 
-const salt = config['salt']; 
+const salt = config['salt'];
 const publicUrl = config['publicUrl'];
 
 const platform = {
@@ -57,15 +58,15 @@ const Bot = {
 
         db.kkiri.findOne({ _id: 'ch_'+channel }, (err, doc) => {
           if(doc && doc.hasOwnProperty('adminToken')) {
-            channels = { adminToken: doc.adminToken };
+            channels[channel] = { adminToken: doc.adminToken };
             console.log(channel + ' has admin token: ' + doc.adminToken);
+            console.log(channels);
           }
         });
       }
     });
 
     twBot.on('connected', (address, port) => {
-
       twBot.on('chat', (channel, userstate, message, self) => {
         var user = userstate.username;
         var tokens = message.split(' ');
@@ -76,13 +77,13 @@ const Bot = {
 
           }
         }
-      })
+      });
     });
   }
 };
 
-function hasPermission(chatter) {
-  return chatter.mod || chatter.username == config['admin'];
+function hasPermission(chatter, channel) {
+  return ('#' + chatter.username == channel) || chatter.username == config['admin'];
 }
 
 function getPlatform(input) {
@@ -103,7 +104,7 @@ const commands = {
       } else {
         if(!doc || doc.status === 'finished') {
           var _t = '시청자 참여 접수시간이 아닙니다!';
-          if(hasPermission(chatter)) {
+          if(hasPermission(chatter, channel)) {
             _t += ' TwitchRPG 관리자 명령: !시참시작, !시참마감, !시참끝 을 사용할 수 있습니다'
           }
           Bot.whisper(_t, chatter.username, channel);
@@ -113,7 +114,7 @@ const commands = {
           if(tokens.length < 3) {
             var _t = '시참을 원하시면 귓말이 아닌 채팅창에 \'!시참 플랫폼 게임ID\' 형태로 말해주세요. (예: !시참 스팀 kkiri). 참여 목록은 \'!시참명단\' 혹은 ${publicUrl} 에서 확인해주세요~! 취소는 \'!시참취소\' 로 가능합니다.';
 
-            if(hasPermission(chatter)) {
+            if(hasPermission(chatter, channel)) {
               _t += ' TwitchRPG 관리자 명령: !시참시작, !시참마감, !시참토큰, !시참끝 을 사용할 수 있습니다'
             }
 
@@ -137,6 +138,8 @@ const commands = {
               displayName: chatter['display-name'],
               channel: channel,
               user: chatter.username,
+              userId: chatter['user-id'],
+              subscriber: chatter.subscriber,
               platform: _platform,
               nickname: tokens[2],
               notice: ''
@@ -167,6 +170,13 @@ const commands = {
                     Bot.whisper(template('${displayName}(${user})님(${nickname}/${platform}) 참여 신청을 접수했습니다. ${notice}', userContext), chatter.username, channel);
                     Bot.say(template('${displayName}(${user})님이 시청자 참여에 등록하셨습니다!', userContext), channel);
                   }
+
+                  request('https://api.twitch.tv/kraken/users/' + userContext.user + '/follows/channels/' + channel.replace('#', '') + '?client_id=' + config['identity']['clientId'],
+                  (err, res, body) => {
+                    db.kkiri.update({user: userContext.user}, {$set: {follow: JSON.parse(body).created_at} }, (err, doc) => {
+
+                    });
+                  });
                 });
               }
             });
@@ -198,7 +208,7 @@ const commands = {
     });
   },
   '!시참플랫폼': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       if(tokens.length < 2) {
         Bot.whisper('시참 가능한 플랫폼 설정을 할 수 있습니다 \"!시참플랫폼 스팀\" 과 같이 입력해주세요. (선택가능: 스팀, 카카오, 전부)!', chatter.username, channel);
       } else {
@@ -211,7 +221,7 @@ const commands = {
     }
   },
   '!시참시작': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       var adminToken = md5(moment().toString()+salt);
       db.kkiri.save({_id: 'ch_'+channel, channel: channel, adminToken: adminToken, status: 'open'}, (err, doc) => {
         if(err) {
@@ -225,7 +235,7 @@ const commands = {
     }
   },
   '!시참마감': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'closed'}, (err, doc) => {
         if(err) {
           console.log(err);
@@ -237,7 +247,7 @@ const commands = {
     }
   },
   '!시참토큰': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       var adminToken = md5(moment().toString()+salt);
       db.kkiri.update({channel: channel}, {$set: {_id: 'ch_'+channel, channel: channel, adminToken: adminToken}}, (err, doc) => {
         Bot.whisper(template('명단 저장을 위한 토큰은 ${adminToken}입니다. 유출될 경우 다시 !시참토큰 해주세요!', {adminToken: adminToken}), chatter.username, channel);
@@ -245,7 +255,7 @@ const commands = {
     }
   },
   '!시참끝': (channel, chatter, tokens) => {
-    if(hasPermission(chatter)) {
+    if(hasPermission(chatter, channel)) {
       var bulk = db.kkiri.initializeOrderedBulkOp();
 
       bulk.find({
@@ -273,7 +283,7 @@ const commands = {
 
 Bot.start();
 
-// EXPRESS 부분 
+// EXPRESS 부분
 
 const path = require('path');
 const express = require('express');
@@ -341,11 +351,11 @@ app.post('/auth', (req, res) => {
 });
 
 app.post('/saveTeam', (req, res) => {
-  if(req.body.adminToken != channels[req.body.channel].adminToken) {
+  if(req.body.adminToken != channels['#'+req.body.channel].adminToken) {
     res.status(403).send('No authorization');
     return;
   } else {
-    db.kkiri.update({ channel: req.body.channel, nickname: req.body.user },
+    db.kkiri.update({ channel: '#'+req.body.channel, nickname: req.body.user },
       {
         $set: {
           team: req.body.team
@@ -361,15 +371,48 @@ app.post('/saveTeam', (req, res) => {
 });
 
 app.post('/changeTeam', (req, res) => {
-  if(req.body.adminToken != channels[req.body.channel].adminToken) {
+  if(req.body.adminToken != channels['#'+req.body.channel].adminToken) {
     res.status(403).send('No authorization');
     return;
   } else {
-    db.kkiri.findOne({ channel: req.body.channel, nickname: req.body.user.username}, (err, doc) => {
-      if (doc && doc.team + req.body.acc > -1) {
-        db.kkiri.update(doc, {
+    db.kkiri.findOne({ channel: '#'+req.body.channel, user: req.body.user.username}, (err, doc) => {
+      if (req.body.hasOwnProperty('acc')) {
+        console.log(doc);
+        if (doc && (parseInt(doc.team, 10) + req.body.acc) > -1) {
+          db.kkiri.update(doc, {
+            $set: {
+              team: parseInt(doc.team, 10) + req.body.acc
+            }
+          }, (err, doc) => {
+            req.body.user.team += req.body.acc;
+            res.json(req.body.user);
+          });
+        } else {
+          res.status(400).send();
+        }
+      } else if(req.body.hasOwnProperty('set')) {
+        db.kkiri.update({channel: '#'+req.body.channel, user: req.body.user}, {
           $set: {
-            team: doc.team + req.body.acc
+            team: req.body.set
+          }
+        }, (err, doc) => {
+          res.json({team: req.body.set});
+        });
+      }
+    });
+  }
+});
+
+app.post('/removeTeam', (req, res) => {
+  if(req.body.adminToken != channels['#'+req.body.channel].adminToken) {
+    res.status(403).send('No authorization');
+    return;
+  } else {
+    db.kkiri.findOne({ channel: '#'+req.body.channel, user: req.body.user.username}, (err, doc) => {
+      if (doc) {
+        db.kkiri.update(doc, {
+          $unset: {
+            team: ""
           }
         }, (err, doc) => {
           req.body.user.team += req.body.acc;
