@@ -254,6 +254,71 @@ const commands = {
       });
     }
   },
+  '!팀생성취소': (channel, chatter, tokens) => {
+    if(hasPermission(chatter, channel)) {
+      var adminToken = md5(moment().toString()+salt);
+      var bulk = db.kkiri.initializeOrderedBulkOp();
+      bulk.find({
+        $or: [
+          { status: 'SUBMITTED' },
+          { status: 'LATED' },
+        ],
+        channel: channel
+      }).update({$unset: {team: 1}});
+
+      bulk.execute((err, doc) => {
+        Bot.say('시청자 참여 팀 편성을 취소했습니다!', channel);
+      });
+    }
+  },
+  '!팀생성': (channel, chatter, tokens) => {
+    console.log('make team');
+    if(hasPermission(chatter, channel)) {
+
+      db.kkiri.find({
+        $or: [
+          { status: 'SUBMITTED' },
+          { status: 'LATED' },
+        ],
+        channel: channel
+      }).sort({team: 1, regdate: 1}, (err, docs) => {
+
+        function shuffle(a) {
+          var j, x, i;
+          for (i = a.length - 1; i > 0; i--) {
+            j = Math.floor(Math.random() * (i + 1));
+            x = a[i];
+            a[i] = a[j];
+            a[j] = x;
+          }
+
+          return a;
+        }
+
+        var subsEntry = shuffle(docs.filter(function(x) { return x.subscriber }));
+        var normalEntry = shuffle(docs.filter(function(x) { return !x.subscriber }));
+
+        subsEntry.push.apply(subsEntry, normalEntry);
+        var entry = subsEntry;
+        for(var i = 0; i < entry.length; i++) {
+          entry.team = i/3;
+          db.kkiri.update({ _id: entry[i]._id}, {$set: {team: Math.floor(i/3)}});
+        }
+        Bot.say(template('시청자 참여 팀을 편성했습니다! ${publicUrl} 을 참고해주세요!', {publicUrl: publicUrl + '/?c=' + channel.replace('#', '') }), channel);
+
+        db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'closed'}, (err, doc) => {
+          if(err) {
+            console.log(err);
+          } else {
+            Bot.say('시청자 참여 접수를 마감했습니다!', channel);
+            var sessionClosed = true;
+          }
+        });
+      });
+    } else {
+      console.log('unauthorized');
+    }
+  },
   '!시참끝': (channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
       var bulk = db.kkiri.initializeOrderedBulkOp();
