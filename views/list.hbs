@@ -35,7 +35,7 @@
                 <option value="">팀 배정</option>
                 <optgroup label="{[{p.name}]}" ng-repeat="p in context.platforms">
                   <option value="{[{$index + 1}]}" ng-repeat="team in p.teams track by $index" ng-bind="$index + 1"></option>
-                  <option value="{[{p.teams.length}]}">새 팀</option>
+                  <option value="{[{p.teams.length +1}]}">새 팀</option>
                 </optgroup>
               </select>
             </div>
@@ -51,13 +51,30 @@
     </thead>
     <tbody>
       {{#each latedUser as |value key|}}
-        <tr class="lated-user-row" data-display-name="{{this.displayName}}" data-username="{{this.nickname}}" data-platform="{{this.platform}}">
+        <tr class="user-row lated-user-row {{#if this.subscriber}}user-subscriber {{/if}}{{#if this.follow}}user-follower {{/if}}{{#if this.hasTeam}}has-team {{/if}}" data-display-name="{{this.displayName}}" data-username="{{this.nickname}}" data-platform="{{this.platform}}" data-team="{{this.team}}" data-user="{{this.user}}">
           <th scope="row" ng-bind="{{key}} + 1"></th>
-          <td>{{this.displayName}}({{this.user}})</td>
+          <td>
+            {{#if this.subscriber}}<i class="subscriber"></i>{{/if}} {{this.displayName}}({{this.user}})
+            <br /><small>팔로우: {{date this.follow "Y-MM-DD"}}</small>
+          </td>
           <td>{{this.platformDisplay}}</td>
           <td>{{this.nickname}}</td>
-          <td>{{this.team}}</td>
+          <td {{#if this.hasTeam}}ng-bind="{{this.team}} + 1"{{/if}}></td>
           <td>{{date this.regdate "Y-MM-DD A hh:mm:ss"}}</td>
+          <td>
+            {{#if this.hasTeam}}
+            {{else}}
+            <div class="form-group" ng-if="!allocated[{{this.user}}]">
+              <select name="" id="" class="form-control" ng-model="user_{{key}}.team" ng-change="saveUserTeam('{{this.user}}', user_{{key}}.team)">
+                <option value="">팀 배정</option>
+                <optgroup label="{[{p.name}]}" ng-repeat="p in context.platforms">
+                  <option value="{[{$index + 1}]}" ng-repeat="team in p.teams track by $index" ng-bind="$index + 1"></option>
+                  <option value="{[{p.teams.length +1}]}">새 팀</option>
+                </optgroup>
+              </select>
+            </div>
+            {{/if}}
+          </td>
         </tr>
       {{/each}}
     </tbody>

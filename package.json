@@ -34,6 +34,7 @@
     "mustache-express4": "0.0.7",
     "passport": "^0.4.0",
     "passport-twitch-new": "git+https://github.com/Nigh7Sh4de/passport-twitch-new.git",
+    "request": "^2.87.0",
     "twitch-bot": "^1.2.5",
     "twitch-js": "^2.0.0-alpha.19"
   },

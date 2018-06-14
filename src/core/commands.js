@@ -1,18 +1,42 @@
-import { getPlatform, getAvailablePlatforms, hasPermission } from './utils';
-import config from "../../config.json"; 
-import md5 from "md5";
-import moment from "moment";
-import template from "es6-template-string";
-
-import mongojs from "mongojs";
+const TwitchJS = require('twitch-js');
+const template = require('es6-template-string');
+const moment = require('moment');
+const mongojs = require('mongojs');
+const md5 = require('md5');
+const request = require('request');
+const config = require('../../config.json');
 const db = mongojs(config['mongoConnection']);
 
-const salt = config['salt']; 
+const twOptions = {
+  channels: config['channels'],
+  options: {
+    debug: config['debug_chat']
+  },
+  secure: true,
+  identity: config['identity']
+};
+const twBot = new TwitchJS.client(twOptions);
 
+const salt = config['salt'];
 const publicUrl = config['publicUrl'];
 
-class CommandResult {
+const platform = {
+  steam: {
+    name: '스팀',
+    alias: ['스팀', '스배', 'steam'],
+    available: true
+  },
+  kakao: {
+    name: '카카오',
+    alias: ['카카오', '카배', '카배그', 'kakao'],
+    available: true
+  }
+};
 
+const DEBUG = config['debug'];
+
+function hasPermission(chatter, channel) {
+  return ('#' + chatter.username == channel) || chatter.username == config['admin'];
 }
 
 const commands = {
@@ -140,13 +164,11 @@ const commands = {
   },
   '!시참시작': (Bot, channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
-      var adminToken = md5(moment().toString()+salt);
-      db.kkiri.save({_id: 'ch_'+channel, channel: channel, adminToken: adminToken, status: 'open'}, (err, doc) => {
+      db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'open'}, (err, doc) => {
         if(err) {
           console.log(err);
         } else {
           Bot.say('시청자 참여 접수가 시작됐습니다! \'!시참 플랫폼 닉네임\' 형태로 접수해주세요!', channel);
-          Bot.whisper(template('${channel} 명단 저장을 위한 토큰은 ${adminToken}입니다. 유출될 경우 다시 !시참시작 해주세요!', {channel: channel, adminToken: adminToken}), chatter.username, channel);
         }
       });
     }
@@ -168,6 +190,70 @@ const commands = {
       db.kkiri.update({channel: channel}, {$set: {_id: 'ch_'+channel, channel: channel, adminToken: adminToken}}, (err, doc) => {
         Bot.whisper(template('명단 저장을 위한 토큰은 ${adminToken}입니다. 유출될 경우 다시 !시참토큰 해주세요!', {adminToken: adminToken}), chatter.username, channel);
       });
+    }
+  },
+  '!팀생성취소': (Bot, channel, chatter, tokens) => {
+    if(hasPermission(chatter, channel)) {
+      var bulk = db.kkiri.initializeOrderedBulkOp();
+      bulk.find({
+        $or: [
+          { status: 'SUBMITTED' },
+          { status: 'LATED' },
+        ],
+        channel: channel
+      }).update({$unset: {team: 1}});
+
+      bulk.execute((err, doc) => {
+        Bot.say('시청자 참여 팀 편성을 취소했습니다!', channel);
+      });
+    }
+  },
+  '!팀생성': (Bot, channel, chatter, tokens) => {
+    console.log('make team');
+    if(hasPermission(chatter, channel)) {
+
+      db.kkiri.find({
+        $or: [
+          { status: 'SUBMITTED' },
+          { status: 'LATED' },
+        ],
+        channel: channel
+      }).sort({team: 1, regdate: 1}, (err, docs) => {
+
+        function shuffle(a) {
+          var j, x, i;
+          for (i = a.length - 1; i > 0; i--) {
+            j = Math.floor(Math.random() * (i + 1));
+            x = a[i];
+            a[i] = a[j];
+            a[j] = x;
+          }
+
+          return a;
+        }
+
+        var subsEntry = shuffle(docs.filter(function(x) { return x.subscriber }));
+        var normalEntry = shuffle(docs.filter(function(x) { return !x.subscriber }));
+
+        subsEntry.push.apply(subsEntry, normalEntry);
+        var entry = subsEntry;
+        for(var i = 0; i < entry.length; i++) {
+          entry.team = i/3;
+          db.kkiri.update({ _id: entry[i]._id}, {$set: {team: Math.floor(i/3)}});
+        }
+        Bot.say(template('시청자 참여 팀을 편성했습니다! ${publicUrl} 을 참고해주세요!', {publicUrl: publicUrl + '/?c=' + channel.replace('#', '') }), channel);
+
+        db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'closed'}, (err, doc) => {
+          if(err) {
+            console.log(err);
+          } else {
+            Bot.say('시청자 참여 접수를 마감했습니다!', channel);
+            var sessionClosed = true;
+          }
+        });
+      });
+    } else {
+      console.log('unauthorized');
     }
   },
   '!시참끝': (Bot, channel, chatter, tokens) => {

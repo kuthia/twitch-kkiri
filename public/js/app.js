@@ -74,7 +74,7 @@ angular.module('kkiri', [])
     }
 
     $scope.saveTeam = () => {
-      if(!$scope.context.adminToken) {
+      if(!$scope.context.adminToken.trim()) {
         alert('관리자용 토큰을 입력해주세요.');
         return;
       }
@@ -89,7 +89,7 @@ angular.module('kkiri', [])
               url: '/saveTeam',
               data: {
                 channel: channel,
-                adminToken: $scope.context.adminToken,
+                adminToken: $scope.context.adminToken.trim(),
                 user: team.users[i].username,
                 team: team.users[i].team
               }
@@ -108,7 +108,7 @@ angular.module('kkiri', [])
 
 
     $scope.saveUserTeam = (user, team) => {
-      if(!$scope.context.adminToken) {
+      if(!$scope.context.adminToken.trim()) {
         alert('관리자용 토큰을 입력해주세요.');
         return;
       }
@@ -120,12 +120,12 @@ angular.module('kkiri', [])
           channel: channel,
           user: user,
           set: parseInt(team, 10)-1,
-          adminToken: $scope.context.adminToken
+          adminToken: $scope.context.adminToken.trim()
         }
       }).then((result) => {
         // change
         var _user = readUser('[data-user='+user+']')[0];
-        if($scope.context.platforms[_user.platform].teams.length <= team) {
+        if($scope.context.platforms[_user.platform].teams.length >= team) {
           $scope.context.platforms[_user.platform].teams[team-1].users.push(_user);
         } else {
           $scope.context.platforms[_user.platform].teams.push({
@@ -139,7 +139,7 @@ angular.module('kkiri', [])
     }
 
     $scope.changeUserTeam = (user, acc) => {
-      if(!$scope.context.adminToken) {
+      if(!$scope.context.adminToken.trim()) {
         alert('관리자용 토큰을 입력해주세요.');
         return;
       }
@@ -156,7 +156,7 @@ angular.module('kkiri', [])
           channel: channel,
           user: user,
           acc: acc,
-          adminToken: $scope.context.adminToken
+          adminToken: $scope.context.adminToken.trim()
         }
       }).then((result) => {
         // change
@@ -181,7 +181,7 @@ angular.module('kkiri', [])
       if(!confirm('팀 배정을 취소할까요?')) {
         return;
       }
-      if(!$scope.context.adminToken) {
+      if(!$scope.context.adminToken.trim()) {
         alert('관리자용 토큰을 입력해주세요.');
         return;
       }
@@ -197,7 +197,7 @@ angular.module('kkiri', [])
         data: {
           channel: channel,
           user: user,
-          adminToken: $scope.context.adminToken
+          adminToken: $scope.context.adminToken.trim()
         }
       }).then((result) => {
         var originalTeam = _.find($scope.context.platforms[user.platform].teams, (val, idx) => { return idx == user.team});
