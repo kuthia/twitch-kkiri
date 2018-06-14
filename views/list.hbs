@@ -12,23 +12,41 @@
         <th scope="col">게임ID</th>
         <th scope="col">팀</th>
         <th scope="col">등록일시</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
       {{#each user as |value key|}}
-        <tr class="user-row {{#if this.hasTeam}}has-team{{/if}}" data-display-name="{{this.displayName}}" data-username="{{this.nickname}}" data-platform="{{this.platform}}" data-team="{{this.team}}">
+        <tr id="user{{key}}" class="user-row {{#if this.subscriber}}user-subscriber{{else}}user-not-subscriber {{/if}}{{#if this.follow}}user-follower {{/if}}{{#if this.hasTeam}}has-team {{/if}}" data-display-name="{{this.displayName}}" data-nickname="{{this.nickname}}" data-platform="{{this.platform}}" data-team="{{this.team}}" data-user="{{this.user}}">
           <th scope="row" ng-bind="{{key}} + 1"></th>
-          <td>{{this.displayName}}({{this.user}})</td>
+          <td>
+            {{#if this.subscriber}}<i class="subscriber"></i>{{/if}} {{this.displayName}}({{this.user}})
+            <br /><small>팔로우: {{date this.follow "Y-MM-DD"}}</small>
+          </td>
           <td>{{this.platformDisplay}}</td>
           <td>{{this.nickname}}</td>
           <td {{#if this.hasTeam}}ng-bind="{{this.team}} + 1"{{/if}}></td>
           <td>{{date this.regdate "Y-MM-DD A hh:mm:ss"}}</td>
+          <td>
+            {{#if this.hasTeam}}
+            {{else}}
+            <div class="form-group" ng-if="!allocated[{{this.user}}]">
+              <select name="" id="" class="form-control" ng-model="user_{{key}}.team" ng-change="saveUserTeam('{{this.user}}', user_{{key}}.team)">
+                <option value="">팀 배정</option>
+                <optgroup label="{[{p.name}]}" ng-repeat="p in context.platforms">
+                  <option value="{[{$index + 1}]}" ng-repeat="team in p.teams track by $index" ng-bind="$index + 1"></option>
+                  <option value="{[{p.teams.length}]}">새 팀</option>
+                </optgroup>
+              </select>
+            </div>
+            {{/if}}
+          </td>
         </tr>
       {{/each}}
     </tbody>
     <thead>
       <tr>
-        <th colspan="6">접수시간 이후 접수한 시청자</th>
+        <th colspan="7">접수시간 이후 접수한 시청자</th>
       </tr>
     </thead>
     <tbody>
@@ -76,7 +94,7 @@
     </span>
     </div>
     <div class="input-group-prepend">
-      <input type="password" ng-if="context.platforms" ng-model="context.adminToken" value="" placeholder="관리자용 토큰을 여기에...">
+      <input type="password" ng-if="context.platforms" ng-model="context.adminToken" ng-init="context.adminToken = '{{login.gameToken}}'" placeholder="관리자용 토큰을 여기에...">
       <button class="btn btn-outline-secondary" type="button" ng-click="makeTeam()">팀 생성!</button>
       <button class="btn btn-outline-secondary btn-primary" type="button" ng-if="context.platforms" name="button" ng-click="saveTeam()">저장</button>
     </div>
@@ -89,10 +107,11 @@
           <h5 class="card-title">{[{$index + 1}]} 팀 <small>&lt;{[{p.name}]}&gt;</small></h5>
           <h6 class="card-subtitle mb-2" ng-class="{'text-warning': team.users.length < context.teamSize, 'text-danger': team.users.length > context.teamSize, 'text-muted': team.users.length == context.teamSize}">{[{team.users.length}]}명</h6>
           <p class="card-text">
-            <span class="pubg-user" ng-repeat="user in team.users">{[{user.displayName}]} ({[{user.username}]})
+            <span class="pubg-user" ng-repeat="user in team.users">{[{user.displayName}]} ({[{user.nickname}]})
               <small>
                 <a href="javascript:;" ng-click="changeUserTeam(user, -1)"><span class="oi oi-arrow-top" title="icon name" aria-hidden="true"></span></a>
                 <a href="javascript:;" ng-click="changeUserTeam(user, 1)"><span class="oi oi-arrow-bottom" title="icon name" aria-hidden="true"></span></a>
+                <a href="javascript:;" ng-click="removeTeam(user)"><span class="oi oi-power-standby" title="icon name" aria-hidden="true"></span></a>
               </small>
             </span>
           </p>

@@ -57,6 +57,8 @@ const commands = {
               displayName: chatter['display-name'],
               channel: channel,
               user: chatter.username,
+              userId: chatter['user-id'],
+              subscriber: chatter.subscriber,
               platform: _platform,
               nickname: tokens[2],
               notice: '',
@@ -86,6 +88,13 @@ const commands = {
                     Bot.whisper(template('${displayName}(${user})님(${nickname}/${platform}) 참여 신청을 접수했습니다. ${notice}', userContext), chatter.username, channel);
                     Bot.say(template('${displayName}(${user})님이 시청자 참여에 등록하셨습니다!', userContext), channel);
                   }
+
+                  request('https://api.twitch.tv/kraken/users/' + userContext.user + '/follows/channels/' + channel.replace('#', '') + '?client_id=' + config['identity']['clientId'],
+                  (err, res, body) => {
+                    db.kkiri.update({user: userContext.user}, {$set: {follow: JSON.parse(body).created_at} }, (err, doc) => {
+
+                    });
+                  });
                 });
               }
             });
