@@ -32,6 +32,10 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.cmd-session a {
+  color: rgba(64, 64, 255, 1);
+}
+
 .nav-underline .nav-link {
   padding-top: .75rem;
   padding-bottom: .75rem;

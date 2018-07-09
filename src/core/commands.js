@@ -39,6 +39,21 @@ function hasPermission(chatter, channel) {
   return ('#' + chatter.username == channel) || chatter.username == config['admin'];
 }
 
+
+function getPlatform(input) {
+	  var _keys = Object.keys(platform);
+	  for(var i = 0; i < _keys.length; i++) {
+		      if(platform[_keys[i]].available && platform[_keys[i]].alias.indexOf(input) > -1) {
+			            return _keys[i];
+			          }
+		    }
+	  console.log('no platform');
+}
+
+
+function getAvailablePlatforms() {
+	  return [].concat(platform.steam.available ? platform.steam.alias : []).concat( platform.kakao.available ? platform.kakao.alias : []);
+}
 const commands = {
   '!시참': (Bot, channel, chatter, tokens) => {
     db.kkiri.findOne({_id: 'ch_'+channel}, (err, doc) => {
@@ -49,8 +64,9 @@ const commands = {
           var _t = '시청자 참여 접수시간이 아닙니다!';
           if(hasPermission(chatter, channel)) {
             _t += ' TwitchRPG 관리자 명령: !시참시작, !시참마감, !시참끝 을 사용할 수 있습니다'
-          }
-          Bot.whisper(_t, chatter.username, channel);
+            Bot.whisper(_t, chatter.username, channel);
+	  }
+	  Bot.say('대기중...', channel);
         } else {
           var sessionClosed = doc.status == 'closed';
 
@@ -113,8 +129,9 @@ const commands = {
                     Bot.say(template('${displayName}(${user})님이 시청자 참여에 등록하셨습니다!', userContext), channel);
                   }
 
-                  request('https://api.twitch.tv/kraken/users/' + userContext.user + '/follows/channels/' + channel.replace('#', '') + '?client_id=' + config['identity']['clientId'],
+                  request('https://api.twitch.tv/kraken/users/' + userContext.user + '/follows/channels/' + channel.replace('#', '') + '?client_id=' + config['twitch']['clientId'],
                   (err, res, body) => {
+			  console.log(body);
                     db.kkiri.update({user: userContext.user}, {$set: {follow: JSON.parse(body).created_at} }, (err, doc) => {
 
                     });
@@ -169,6 +186,17 @@ const commands = {
           console.log(err);
         } else {
           Bot.say('시청자 참여 접수가 시작됐습니다! \'!시참 플랫폼 닉네임\' 형태로 접수해주세요!', channel);
+        }
+      });
+    }
+  },
+  '!접수마감': (Bot, channel, chatter, tokens) => {
+    if(hasPermission(chatter, channel)) {
+      db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'finished'}, (err, doc) => {
+        if(err) {
+          console.log(err);
+        } else {
+          Bot.say('시청자 참여 접수를 마감했습니다!', channel);
         }
       });
     }

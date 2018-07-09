@@ -118,7 +118,7 @@ angular.module('kkiri', [])
         url: '/changeTeam',
         data: {
           channel: channel,
-          user: user,
+          user: { username: user },
           set: parseInt(team, 10)-1,
           adminToken: $scope.context.adminToken.trim()
         }
@@ -232,6 +232,47 @@ angular.module('kkiri', [])
 
       if(confirm('바로 저장할까요?')) {
         $scope.saveTeam();
+      }
+    };
+
+    $scope.startSession = () => {
+      $http({
+        method: 'post',
+        url: '/startSession',
+        data: {
+          channel: channel,
+          adminToken: $scope.context.adminToken.trim()
+        }
+      }).then((result) => {
+        alert('참여 접수를 시작했습니다.');
+      });
+    };
+
+    $scope.closeSession = () => {
+      $http({
+        method: 'post',
+        url: '/closeSession',
+        data: {
+          channel: channel,
+          adminToken: $scope.context.adminToken.trim()
+        }
+      }).then((result) => {
+        alert('참여 접수를 마감했습니다.');
+      });;
+    };
+
+    $scope.clearSession = () => {
+      if(confirm('모든 참여 정보가 삭제됩니다. 계속하시겠습니까?')) {
+        $http({
+          method: 'post',
+          url: '/clearSession',
+          data: {
+            channel: channel,
+            adminToken: $scope.context.adminToken.trim()
+          }
+        }).then((result) => {
+          $location.reload();
+        });
       }
     };
 

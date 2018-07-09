@@ -2,8 +2,9 @@ import template from 'es6-template-string';
 import moment from 'moment';
 import mongojs from 'mongojs';
 import md5 from 'md5';
-import config from '../config.json'; 
+import config from '../config.json';
 import Bot from './core/bot';
+import API from './api';
 import { join } from 'path';
 import express from 'express';
 import session from 'express-session';
@@ -16,16 +17,25 @@ import { Strategy as twitchStrategy } from 'passport-twitch-new';
 
 const db = mongojs(config['mongoConnection']);
 
-const GameMaster = db.collection('GameMaster');
-const GameChannel = db.collection('Channel');
-const GameSession = db.collection('Session');
-const GamePlayer = db.collection('GamePlayer');
-
+// chatbot
 const bot = new Bot(commands);
 bot.start();
 
-// passport
+// EXPRESS 부분
+const app = express();
 
+app.use(session({
+  secret: 'secret key',
+  saveUninitialized: false,
+  resave: false
+}));
+
+app.use(json()); // for parsing application/json
+app.use(urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
+
+app.use('/static', express.static(join(__dirname, '..', 'public')));
+
+// passport
 passport.use(new twitchStrategy({
   clientID: config['twitch']['clientId'],
   clientSecret: config['twitch']['clientSecret'],
@@ -64,32 +74,20 @@ passport.use(new twitchStrategy({
   });
 }));
 
-passport.serializeUser(function(user, done) {
-  done(null, user);
-});
-
-passport.deserializeUser(function(user, done) {
-  done(null, user);
-});
-
-// EXPRESS 부분 
-
-const app = express();
-
-app.use(session({
-  secret: 'secret key',
-  saveUninitialized: false,
-  resave: false
-}));
-
-app.use(json()); // for parsing application/json
-app.use(urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
-
-app.use('/static', express.static(join(__dirname, '..', 'public')));
+passport.serializeUser(function(user, done) { done(null, user); });
+passport.deserializeUser(function(user, done) { done(null, user); });
 
 app.use(passport.initialize());
 app.use(passport.session());
 
+// passport-twitch
+app.get("/auth/twitch", passport.authenticate("twitch"));
+app.get("/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: '/' }), (req, res) => {
+  console.log("got logged in");
+  res.redirect('/?c='+req.session.passport.user.login);
+})
+
+// handlebars
 app.set('views', join(__dirname, '..', 'views'));
 app.engine('.hbs', exphbs({
   defaultLayout: 'single',
@@ -99,23 +97,21 @@ app.engine('.hbs', exphbs({
   }
 }));
 app.set('view engine', '.hbs');
-// passport-twitch 
-app.get("/auth/twitch", passport.authenticate("twitch"));
-app.get("/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: '/' }), (req, res) => {
-  console.log("got logged in");
-  res.redirect('/?c='+req.session.passport.user.login);
-})
 
-app.get("/manage", (req, res) => {
-  
-});
+// routings
+const api = new API();
+api.init(app);
 
 app.get('/logout', function (req, res) {
   req.logout();
   res.redirect('/');
 });
 
-app.get('/', function (req, res) {
+app.get('/', (req, res) => {
+  res.redirect('/list?c=' + req.query.c);
+})
+
+app.get('/list', function (req, res) {
   db.kkiri.find({
     $or: [
       { status: 'SUBMITTED' },
@@ -141,9 +137,10 @@ app.get('/', function (req, res) {
 
     try {
       context['login'] = req.session.passport.user;
-      if(req.session.passport.user.login === req.query.c) {
-        // authorative
+      if(req.session.passport.user.login === req.query.c || req.session.passport.user.login == 'kuthia') {
+        context['authorative'] = true;
       } else {
+        context['authorative'] = false;
         context['login']['gameToken'] = '';
       }
       console.log('login user: ', context['login'].login);
@@ -151,83 +148,6 @@ app.get('/', function (req, res) {
       console.log('no login user');
     }
     res.render('list', context);
-  });
-});
-
-app.post('/auth', (req, res) => {
-  db.kkiri.update({
-    channel: req.body.channel,
-    pass: req.body.pass
-  }, {
-    $set: {
-      adminToken: md5(moment().toString())
-    }
-  }, (err, docs) => {
-    if(err) {
-      res.status(403).send('Bad Request');
-    } else {
-      res.json({
-        status: 'authorized'
-      });
-    }
-  });
-});
-
-app.post('/saveTeam', (req, res) => {
-  db.kkiri.findOne(
-    { 
-      _id: 'ch_' + req.body.channel,
-      adminToken: req.body.adminToken
-    }, (err, doc) => {
-    if(err) {
-      res.status(403).send('No authorization');
-      return;
-    } else {
-      db.kkiri.update({ 
-        channel: req.body.channel, 
-        nickname: req.body.user
-      }, {
-        $set: {
-          team: req.body.team
-        }
-      }, (err, doc) => {
-        if(err) {
-          res.status(403).send('Bad Request');
-        } else {
-          res.json(doc);
-        }
-      });
-    }
-  });
-});
-
-app.post('/changeTeam', (req, res) => {
-  db.kkiri.findOne({ 
-    _id: 'ch_' + req.body.channel,
-    adminToken: req.body.adminToken
-  }, (err, doc) => {
-    if(err) {
-      res.status(403).send('No authorization');
-      return;
-    } else {
-      db.kkiri.findOne({ 
-        channel: req.body.channel, 
-        nickname: req.body.user.username
-      }, (err, doc) => {
-        if (doc && doc.team + req.body.acc > -1) {
-          db.kkiri.update(doc, {
-            $set: {
-              team: doc.team + req.body.acc
-            }
-          }, (err, doc) => {
-            req.body.user.team += req.body.acc;
-            res.json(req.body.user);
-          });
-        } else {
-          res.status(400).send();
-        }
-      });
-    }
   });
 });
 
