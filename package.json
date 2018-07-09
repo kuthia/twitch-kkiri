@@ -2,10 +2,10 @@
   "name": "kkiri",
   "version": "1.0.0",
   "description": "Twitch automated user participation",
-  "main": "src/app.js",
+  "main": "src/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "babel-node --presets es2015 -- src/app.js",
+    "start": "babel-node --presets es2015 -- src/main.js",
     "start:dev": "webpack-dev-server"
   },
   "author": "ax.nowayout@gmail.com",
