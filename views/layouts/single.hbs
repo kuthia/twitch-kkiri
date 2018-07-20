@@ -19,8 +19,8 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
-<body>
-
+<body ng-controller="TeamController">
+  <toast></toast>
   <div class="d-flex flex-column flex-md-row align-items-center p-3 px-md-4 bg-white">
     <h5 class="my-0 mr-md-auto font-weight-normal">
       #{{channel}} 시청자 참여 접수목록
@@ -37,6 +37,12 @@
 
   <div class="nav-scroller bg-white box-shadow">
     <nav class="nav nav-underline">
+
+      <a class="nav-link" href="#" ng-click="startSession()">시작</a>
+      <a class="nav-link" href="#" ng-click="changeSession()">마감(접수가능)</a>
+      <a class="nav-link" href="#" ng-click="closeSession()">마감(접수불가)</a>
+      <a class="nav-link" href="#" ng-click="deleteSession()">끝내기</a>
+
       <a class="nav-link" ui-sref="session({sessionId: s.id})" ng-class="{active: session}" ng-repeat="s in sessions">
         Dashboard
         <span class="badge badge-pill bg-light align-text-bottom" ng-bind="session.members.length"></span>
@@ -45,9 +51,7 @@
   </div>
 
   <div class="container">
-    <div class="" ng-controller="TeamController">
-      <pre>
-  </pre>
+    <div class="">
       <table class="table">
         <thead>
           <tr>
@@ -61,15 +65,31 @@
         </thead>
         <tbody>
           {{#each user as |value key|}}
-          <tr class="user-row {{#if this.hasTeam}}has-team{{/if}}" data-display-name="{{this.displayName}}" data-username="{{this.nickname}}"
-            data-platform="{{this.platform}}" data-team="{{this.team}}">
-            <th scope="row" ng-bind="{{key}} + 1"></th>
-            <td>{{this.displayName}}({{this.user}})</td>
-            <td>{{this.platformDisplay}}</td>
-            <td>{{this.nickname}}</td>
-            <td {{#if this.hasTeam}}ng-bind="{{this.team}} + 1" {{/if}}></td>
-            <td>{{date this.regdate "Y-MM-DD A hh:mm:ss"}}</td>
-          </tr>
+            <tr id="user{{key}}" class="user-row {{#if this.subscriber}}user-subscriber{{else}}user-not-subscriber {{/if}}{{#if this.follow}}user-follower {{/if}} {{#if this.hasTeam}}has-team {{/if}}" data-display-name="{{this.displayName}}" data-nickname="{{this.nickname}}" data-platform="{{this.platform}}" data-team="{{this.team}}" data-user="{{this.user}}">
+              <th scope="row" ng-bind="{{key}} + 1"></th>
+              <td>
+                {{#if this.subscriber}}<i class="subscriber"></i>{{/if}} {{this.displayName}}({{this.user}})
+                <br /><small>팔로우: {{date this.follow "Y-MM-DD"}}</small>
+              </td>
+              <td>{{this.platformDisplay}}</td>
+              <td>{{this.nickname}}</td>
+              <td {{#if this.hasTeam}}ng-bind="{{this.team}} + 1"{{/if}}></td>
+              <td>{{date this.regdate "Y-MM-DD A hh:mm:ss"}}</td>
+              <td>
+                {{#if this.hasTeam}}
+                {{else}}
+                <div class="form-group" ng-if="!allocated[{{this.user}}]">
+                  <select name="" id="" class="form-control" ng-model="user_{{key}}.team" ng-change="saveUserTeam('{{this.user}}', user_{{key}}.team)">
+                    <option value="">팀 배정</option>
+                    <optgroup label="{[{p.name}]}" ng-repeat="p in context.platforms">
+                      <option value="{[{$index + 1}]}" ng-repeat="team in p.teams track by $index" ng-bind="$index + 1"></option>
+                      <option value="{[{p.teams.length +1}]}">새 팀</option>
+                    </optgroup>
+                  </select>
+                </div>
+                {{/if}}
+              </td>
+            </tr>
           {{/each}}
         </tbody>
         <thead>
@@ -79,14 +99,31 @@
         </thead>
         <tbody>
           {{#each latedUser as |value key|}}
-          <tr class="lated-user-row" data-display-name="{{this.displayName}}" data-username="{{this.nickname}}" data-platform="{{this.platform}}">
-            <th scope="row" ng-bind="{{key}} + 1"></th>
-            <td>{{this.displayName}}({{this.user}})</td>
-            <td>{{this.platformDisplay}}</td>
-            <td>{{this.nickname}}</td>
-            <td>{{this.team}}</td>
-            <td>{{date this.regdate "Y-MM-DD A hh:mm:ss"}}</td>
-          </tr>
+            <tr class="user-row lated-user-row {{#if this.subscriber}}user-subscriber {{/if}}{{#if this.follow}}user-follower {{/if}}{{#if this.hasTeam}}has-team {{/if}}" data-display-name="{{this.displayName}}" data-username="{{this.nickname}}" data-platform="{{this.platform}}" data-team="{{this.team}}" data-user="{{this.user}}">
+              <th scope="row" ng-bind="{{key}} + 1"></th>
+              <td>
+                {{#if this.subscriber}}<i class="subscriber"></i>{{/if}} {{this.displayName}}({{this.user}})
+                <br /><small>팔로우: {{date this.follow "Y-MM-DD"}}</small>
+              </td>
+              <td>{{this.platformDisplay}}</td>
+              <td>{{this.nickname}}</td>
+              <td {{#if this.hasTeam}}ng-bind="{{this.team}} + 1"{{/if}}></td>
+              <td>{{date this.regdate "Y-MM-DD A hh:mm:ss"}}</td>
+              <td>
+                {{#if this.hasTeam}}
+                {{else}}
+                <div class="form-group" ng-if="!allocated[{{this.user}}]">
+                  <select name="" id="" class="form-control" ng-model="user_{{key}}.team" ng-change="saveUserTeam('{{this.user}}', user_{{key}}.team)">
+                    <option value="">팀 배정</option>
+                    <optgroup label="{[{p.name}]}" ng-repeat="p in context.platforms">
+                      <option value="{[{$index + 1}]}" ng-repeat="team in p.teams track by $index" ng-bind="$index + 1"></option>
+                      <option value="{[{p.teams.length +1}]}">새 팀</option>
+                    </optgroup>
+                  </select>
+                </div>
+                {{/if}}
+              </td>
+            </tr>
           {{/each}}
         </tbody>
       </table>

@@ -39,6 +39,20 @@ function hasPermission(chatter, channel) {
   return ('#' + chatter.username == channel) || chatter.username == config['admin'];
 }
 
+function getPlatform(input) {
+	  var _keys = Object.keys(platform);
+	  for(var i = 0; i < _keys.length; i++) {
+		      if(platform[_keys[i]].available && platform[_keys[i]].alias.indexOf(input) > -1) {
+			            return _keys[i];
+			          }
+		    }
+	  console.log('no platform');
+}
+
+function getAvailablePlatforms() {
+	  return [].concat(platform.steam.available ? platform.steam.alias : []).concat( platform.kakao.available ? platform.kakao.alias : []);
+}
+
 const commands = {
   '!시참': (Bot, channel, chatter, tokens) => {
     db.kkiri.findOne({_id: 'ch_'+channel}, (err, doc) => {
@@ -112,11 +126,11 @@ const commands = {
                     Bot.whisper(template('${displayName}(${user})님(${nickname}/${platform}) 참여 신청을 접수했습니다. ${notice}', userContext), chatter.username, channel);
                     Bot.say(template('${displayName}(${user})님이 시청자 참여에 등록하셨습니다!', userContext), channel);
                   }
-
-                  request('https://api.twitch.tv/kraken/users/' + userContext.user + '/follows/channels/' + channel.replace('#', '') + '?client_id=' + config['identity']['clientId'],
+                  console.log('https://api.twitch.tv/kraken/users/' + userContext.user + '/follows/channels/' + channel.replace('#', '') + '?client_id=' + config['twitch']['clientId']);
+                  request('https://api.twitch.tv/kraken/users/' + userContext.user + '/follows/channels/' + channel.replace('#', '') + '?client_id=' + config['twitch']['clientId'],
                   (err, res, body) => {
                     db.kkiri.update({user: userContext.user}, {$set: {follow: JSON.parse(body).created_at} }, (err, doc) => {
-
+                      console.log(body);
                     });
                   });
                 });
@@ -179,7 +193,18 @@ const commands = {
         if(err) {
           console.log(err);
         } else {
-          Bot.say('시청자 참여 접수를 마감했습니다!', channel);
+          Bot.say('시청자 참여 접수를 변경했습니다! 이제부터는 추가인원으로 등록됩니다.', channel);
+        }
+      });
+    }
+  },
+  '!접수마감': (Bot, channel, chatter, tokens) => {
+    if(hasPermission(chatter, channel)) {
+      db.kkiri.save({_id: 'ch_'+channel, channel: channel, status: 'finished'}, (err, doc) => {
+        if(err) {
+          console.log(err);
+        } else {
+          Bot.say('시청자 참여 접수를 끝냈습니다!', channel);
         }
       });
     }
@@ -256,6 +281,9 @@ const commands = {
       console.log('unauthorized');
     }
   },
+  '!끼리': (Bot, channel, chatter, tokens) => {
+    Bot.say(template('안녕하세요. 시청자 방송참여 지원봇 끼리입니다. 명단은 ${publicUrl} 를 참조해주세요.', {publicUrl: publicUrl + '/?c=' + channel.replace('#', '') }), channel);
+  },
   '!시참끝': (Bot, channel, chatter, tokens) => {
     if(hasPermission(chatter, channel)) {
       var bulk = db.kkiri.initializeOrderedBulkOp();
@@ -276,7 +304,7 @@ const commands = {
 
             }
           });
-          Bot.say('시청자 참여 접수가 종료됐습니다!', channel);
+          Bot.say('시청자 참여가 종료됐습니다!', channel);
         }
       });
     }

@@ -235,4 +235,57 @@ angular.module('kkiri', [])
       }
     };
 
+    $scope.startSession = () => {
+      $http({
+        method: 'post',
+        url: '/startSession',
+        data: {
+          channel: channel,
+          adminToken: $scope.context.adminToken.trim()
+        }
+      }).then((result) => {
+        alert('시작했습니다');
+      });
+    };
+
+    $scope.changeSession = () => {
+      $http({
+        method: 'post',
+        url: '/changeSession',
+        data: {
+          channel: channel,
+          adminToken: $scope.context.adminToken.trim()
+        }
+      }).then((result) => {
+        alert('변경했습니다');
+      });
+    };
+
+    $scope.closeSession = () => {
+      $http({
+        method: 'post',
+        url: '/closeSession',
+        data: {
+          channel: channel,
+          adminToken: $scope.context.adminToken.trim()
+        }
+      }).then((result) => {
+        alert('변경했습니다');
+      });
+    };
+
+    $scope.deleteSession = () => {
+      $http({
+        method: 'post',
+        url: '/deleteSession',
+        data: {
+          channel: channel,
+          adminToken: $scope.context.adminToken.trim()
+        }
+      }).then((result) => {
+        alert('종료했습니다');
+        $location.reload();
+      });
+    };
+
   });

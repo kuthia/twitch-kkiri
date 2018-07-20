@@ -2,7 +2,7 @@ import template from 'es6-template-string';
 import moment from 'moment';
 import mongojs from 'mongojs';
 import md5 from 'md5';
-import config from '../config.json'; 
+import config from '../config.json';
 import Bot from './core/bot';
 import { join } from 'path';
 import express from 'express';
@@ -72,7 +72,7 @@ passport.deserializeUser(function(user, done) {
   done(null, user);
 });
 
-// EXPRESS 부분 
+// EXPRESS 부분
 
 const app = express();
 
@@ -99,7 +99,7 @@ app.engine('.hbs', exphbs({
   }
 }));
 app.set('view engine', '.hbs');
-// passport-twitch 
+// passport-twitch
 app.get("/auth/twitch", passport.authenticate("twitch"));
 app.get("/auth/twitch/callback", passport.authenticate("twitch", { failureRedirect: '/' }), (req, res) => {
   console.log("got logged in");
@@ -107,7 +107,7 @@ app.get("/auth/twitch/callback", passport.authenticate("twitch", { failureRedire
 })
 
 app.get("/manage", (req, res) => {
-  
+
 });
 
 app.get('/logout', function (req, res) {
@@ -142,8 +142,9 @@ app.get('/', function (req, res) {
     try {
       context['login'] = req.session.passport.user;
       if(req.session.passport.user.login === req.query.c) {
-        // authorative
+        context['authorative'] = true;
       } else {
+        context['authorative'] = false;
         context['login']['gameToken'] = '';
       }
       console.log('login user: ', context['login'].login);
@@ -175,7 +176,7 @@ app.post('/auth', (req, res) => {
 
 app.post('/saveTeam', (req, res) => {
   db.kkiri.findOne(
-    { 
+    {
       _id: 'ch_' + req.body.channel,
       adminToken: req.body.adminToken
     }, (err, doc) => {
@@ -183,8 +184,8 @@ app.post('/saveTeam', (req, res) => {
       res.status(403).send('No authorization');
       return;
     } else {
-      db.kkiri.update({ 
-        channel: req.body.channel, 
+      db.kkiri.update({
+        channel: req.body.channel,
         nickname: req.body.user
       }, {
         $set: {
@@ -202,7 +203,7 @@ app.post('/saveTeam', (req, res) => {
 });
 
 app.post('/changeTeam', (req, res) => {
-  db.kkiri.findOne({ 
+  db.kkiri.findOne({
     _id: 'ch_' + req.body.channel,
     adminToken: req.body.adminToken
   }, (err, doc) => {
@@ -210,8 +211,8 @@ app.post('/changeTeam', (req, res) => {
       res.status(403).send('No authorization');
       return;
     } else {
-      db.kkiri.findOne({ 
-        channel: req.body.channel, 
+      db.kkiri.findOne({
+        channel: req.body.channel,
         nickname: req.body.user.username
       }, (err, doc) => {
         if (doc && doc.team + req.body.acc > -1) {
@@ -230,5 +231,96 @@ app.post('/changeTeam', (req, res) => {
     }
   });
 });
+
+app.post('/startSession', (req, res) => {
+  GameMaster.findOne(
+    {
+      login: req.body.channel,
+      gameToken: req.body.adminToken
+    }, (err, doc) => {
+      if(err || doc == null) {
+        res.status(403).send('No authorization');
+        return;
+      } else {
+        console.log(doc);
+        commands['!시참시작'](bot, '#'+req.body.channel, {username: req.body.channel}, null);
+        res.status(200).send({});
+        return;
+    }
+  });
+});
+
+app.post('/changeSession', (req, res) => {
+  GameMaster.findOne(
+    {
+      login: req.body.channel,
+      gameToken: req.body.adminToken
+    }, (err, doc) => {
+      if(err || doc == null) {
+        res.status(403).send('No authorization');
+        return;
+      } else {
+        console.log(doc);
+        commands['!시참마감'](bot, '#'+req.body.channel, {username: req.body.channel}, null);
+        res.status(200).send({});
+        return;
+    }
+  });
+});
+
+app.post('/closeSession', (req, res) => {
+  GameMaster.findOne(
+    {
+      login: req.body.channel,
+      gameToken: req.body.adminToken
+    }, (err, doc) => {
+      if(err || doc == null) {
+        res.status(403).send('No authorization');
+        return;
+      } else {
+        console.log(doc);
+        commands['!접수마감'](bot, '#'+req.body.channel, {username: req.body.channel}, null);
+        res.status(200).send({});
+        return;
+    }
+  });
+});
+
+app.post('/deleteSession', (req, res) => {
+  GameMaster.findOne(
+    {
+      login: req.body.channel,
+      gameToken: req.body.adminToken
+    }, (err, doc) => {
+      if(err || doc == null) {
+        res.status(403).send('No authorization');
+        return;
+      } else {
+        console.log(doc);
+        commands['!시참끝'](bot, '#'+req.body.channel, {username: req.body.channel}, null);
+        res.status(200).send({});
+        return;
+    }
+  });
+});
+
+app.post('/closeSession', (req, res) => {
+  GameMaster.findOne(
+    {
+      login: req.body.channel,
+      gameToken: req.body.adminToken
+    }, (err, doc) => {
+      if(err || doc == null) {
+        res.status(403).send('No authorization');
+        return;
+      } else {
+        console.log(doc);
+        commands['!시참시작'](bot, '#'+req.body.channel, {username: req.body.channel}, null);
+        res.status(200).send({});
+        return;
+    }
+  });
+});
+
 
 app.listen(config['port'], () => console.log('KKIRI listening on port '+config['port']))
