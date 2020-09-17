@@ -27,7 +27,7 @@
     "kue": "^0.11.6",
     "md5": "^2.2.1",
     "moment": "^2.22.1",
-    "mongodb": "^3.0.7",
+    "mongodb": "^3.1.13",
     "mongojs": "^2.5.0",
     "mustache": "^2.3.0",
     "mustache-express": "^1.2.5",
